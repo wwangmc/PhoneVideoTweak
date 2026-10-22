@@ -198,7 +198,7 @@ static void PMEncoded(void *context, void *source, OSStatus status, VTEncodeInfo
             CVPixelBufferRef capture = NULL, input = NULL;
             if (CVPixelBufferPoolCreatePixelBufferWithAuxAttributes(NULL, _capturePool, (__bridge CFDictionaryRef)poolLimit, &capture)) continue;
             IOSurfaceRef surface = CVPixelBufferGetIOSurface(capture);
-            if (!surface || IOSurfaceLock(surface, 0, NULL) != kIOReturnSuccess) { CVPixelBufferRelease(capture); break; }
+            if (!surface || IOSurfaceLock(surface, 0, NULL) != 0) { CVPixelBufferRelease(capture); break; }
             render(0, CFSTR("LCD"), surface, 0, 0);
             IOSurfaceUnlock(surface, 0, NULL);
             if (needsScale) {
