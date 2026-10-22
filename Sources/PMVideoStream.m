@@ -3,7 +3,7 @@
 #import <CoreVideo/CoreVideo.h>
 #import <CoreVideo/CVPixelBufferIOSurface.h>
 #import <VideoToolbox/VideoToolbox.h>
-#import <IOSurface/IOSurface.h>
+#import <IOSurface/IOSurfaceRef.h>
 #import <CoreImage/CoreImage.h>
 #include <dlfcn.h>
 #include <sys/socket.h>

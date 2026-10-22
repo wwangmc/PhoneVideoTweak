@@ -19,5 +19,6 @@ include $(THEOS)/makefiles/common.mk
 TWEAK_NAME = PhoneVideo
 PhoneVideo_FILES = Tweak.xm Sources/PMVideoServer.m Sources/PMVideoStream.m
 PhoneVideo_CFLAGS = -fobjc-arc -Wall -Wextra -Werror
-PhoneVideo_FRAMEWORKS = UIKit Foundation CoreGraphics CoreImage CoreMedia CoreVideo VideoToolbox IOSurface QuartzCore
+PhoneVideo_FRAMEWORKS = UIKit Foundation CoreGraphics CoreImage CoreMedia CoreVideo VideoToolbox QuartzCore
+PhoneVideo_PRIVATE_FRAMEWORKS = IOSurface
 include $(THEOS_MAKE_PATH)/tweak.mk
