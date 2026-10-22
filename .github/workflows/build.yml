@@ -1,0 +1,103 @@
+name: Build PhoneVideo packages
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phonevideo-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Package (${{ matrix.mode }})
+    runs-on: macos-15
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - mode: rootful
+            type: 0
+            archs: arm64
+          - mode: rootless
+            type: 1
+            archs: arm64 arm64e
+          - mode: roothide
+            type: 2
+            archs: arm64 arm64e
+    defaults:
+      run:
+        shell: bash
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
+      HOMEBREW_NO_AUTO_UPDATE: '1'
+      BUILD_TYPE: ${{ matrix.type }}
+      BUILD_ARCHS: ${{ matrix.archs }}
+      BUILD_MODE: ${{ matrix.mode }}
+
+    steps:
+      - name: Checkout project
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Test wire protocol
+        run: |
+          clang -std=c11 -Wall -Wextra -Werror Tests/wire_test.c -o "$RUNNER_TEMP/wire-test"
+          "$RUNNER_TEMP/wire-test"
+
+      - name: Install build tools
+        run: |
+          xcodebuild -version
+          brew install make ldid xz
+          echo "$(brew --prefix make)/libexec/gnubin" >> "$GITHUB_PATH"
+          echo "THEOS=$RUNNER_TEMP/theos" >> "$GITHUB_ENV"
+
+      - name: Install RootHide Theos
+        run: |
+          git clone --recursive --depth 1 --branch master https://github.com/roothide/theos.git "$THEOS"
+          git -C "$THEOS" rev-parse HEAD
+
+      - name: Install iOS 16.5 SDK
+        run: |
+          sdk_checkout="$RUNNER_TEMP/theos-sdks"
+          git clone --depth 1 --filter=blob:none --sparse --branch master https://github.com/theos/sdks.git "$sdk_checkout"
+          git -C "$sdk_checkout" sparse-checkout set iPhoneOS16.5.sdk
+          mkdir -p "$THEOS/sdks"
+          cp -R "$sdk_checkout/iPhoneOS16.5.sdk" "$THEOS/sdks/"
+          test -f "$THEOS/sdks/iPhoneOS16.5.sdk/SDKSettings.plist"
+          git -C "$sdk_checkout" rev-parse HEAD
+
+      - name: Build deb package
+        run: |
+          set -o pipefail
+          make TYPE="$BUILD_TYPE" ARCHS="$BUILD_ARCHS" clean 2>&1 | tee "build-$BUILD_MODE.log"
+          make -j"$(sysctl -n hw.ncpu)" TYPE="$BUILD_TYPE" ARCHS="$BUILD_ARCHS" FINALPACKAGE=1 package \
+            2>&1 | tee -a "build-$BUILD_MODE.log"
+          for package in packages/*.deb; do shasum -a 256 "$package"; done | tee "SHA256SUMS-$BUILD_MODE.txt"
+
+      - name: Upload deb package
+        uses: actions/upload-artifact@v4
+        with:
+          name: PhoneVideo-${{ matrix.mode }}
+          path: |
+            packages/*.deb
+            SHA256SUMS-*.txt
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload build log
+        if: ${{ always() && !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log-${{ matrix.mode }}
+          path: build-${{ matrix.mode }}.log
+          if-no-files-found: ignore
+          retention-days: 14
