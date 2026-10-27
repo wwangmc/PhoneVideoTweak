@@ -1,77 +1,109 @@
 # PhoneVideoTweak
 
-独立的越狱 iOS 投屏插件，为 GoScrcpy 提供 USB H.264 视频流。与 `mks_tweak` 同时安装；不修改、不链接、不替换 mks_tweak 的任何文件或接口。触摸、键盘、Home 等操作仍由电脑端通过原有 mks_tweak 接口完成。
+为越狱 iPhone/iPad 提供 USB 投屏和控制的 Theos 插件，是 **[GoScrcpy](https://github.com/wwangmc/GoScrcpy)** 的 iOS 配套项目。
 
-当前是需要真机验证的实验实现，目标设备包括 iOS 15.6。源代码完成和 CI 编译通过都不等于已经验证实际画面、硬件编码状态或流畅度。
+**[下载 deb](https://github.com/wwangmc/PhoneVideoTweak/releases/latest)** · **[下载 GoScrcpy](https://github.com/wwangmc/GoScrcpy/releases/latest)** · **[编译工作流](https://github.com/wwangmc/PhoneVideoTweak/actions)**
 
-## 工作方式
+## 功能
 
-```
-SpringBoard 全屏采集 → IOSurface / CVPixelBuffer 池
-                    → VideoToolbox H.264 → USBMux → GoScrcpy WebCodecs
-电脑触摸/键盘       → USBMux → 原 mks_tweak :8081
-```
+- H.264 视频：全屏采集后通过 VideoToolbox 编码，经 USBMux 传给 GoScrcpy。
+- JPEG 截图：提供截图投屏方式及静态画面无变化响应。
+- 触摸与按键：点击、单点拖动、Home、任务、电源、Enter/Tab。
+- 文字输入：Unicode 文字、删除、左右光标，由独立键盘组件传递到当前应用。
+- 设备信息和系统设置：屏幕尺寸、设备信息、语言、地区和时区。
+- Shell 辅助：用于 GoScrcpy 的 OpenSSH 状态检测、安装页面跳转等请求。
 
-- 只注入 SpringBoard。没有桌面图标或新界面。
-- 手机视频服务绑定 `127.0.0.1:27184`，电脑通过 USBMux 直接打开该手机端口，不依赖 Wi-Fi，也不监听电脑的固定端口。
-- 不生成 UIImage/JPEG；复用最多 3 个采集缓冲区。需要缩放时用复用的 Core Image 上下文，未缩放时直接提交采集缓冲区。
-- 使用系统 VideoToolbox H.264 编码器、实时模式、Baseline、禁止帧重排，尝试关闭帧延迟；一次最多提交一帧，超时停止，避免形成无界帧队列。
-- 每台手机最多一个视频客户端；不同手机拥有各自独立的 USB 连接。重复连接会被拒绝，不抢占已有投屏。
-- 静态画面减少采集，每秒至少发送一帧。断开连接即释放编码器和缓冲池。
-- 电脑端自动优先使用 PhoneVideo；未安装或端口打不开时继续使用原截图方式。端口已连接但插件启动失败会明确报错，避免误把截图当作 H.264 效果。
+从 0.2.0 起，插件独立包含 GoScrcpy main 所需的原 mks_tweak 功能，不要求同时安装 mks_tweak。GoScrcpy 仍保留旧插件兼容：优先连接 PhoneVideoTweak，新控制端口不可用时回退 mks_tweak `8081`。
 
-## GitHub Actions 编译
+一键地区设置**只操作系统语言、地区和时区**，不读写 GPT 应用配置，不处理运营商参数。
 
-把**本项目目录作为独立 GitHub 仓库的根目录**推送。工作流必须位于仓库根目录下的 `.github/workflows/build.yml`，不要把整个 PhoneManager 或 mks_tweak 推上去。
+## 下载与安装
 
-1. 推送到 `main` / `master`，或在 Actions 中选择 **Build PhoneVideo packages → Run workflow**。
-2. 工作流使用 macOS 15、Xcode 16.4、RootHide Theos 和 iOS 16.5 SDK，与 mks_tweak 的构建方式一致。
-3. 完成后在该次运行的 Artifacts 下载适合越狱类型的包：
+从 [Releases](https://github.com/wwangmc/PhoneVideoTweak/releases/latest) 下载一个与越狱环境匹配的 deb：
 
-| Artifact | 架构 | 用途 |
-| --- | --- | --- |
-| `PhoneVideo-rootful` | arm64 | 传统有根环境，最低 iOS 14 |
-| `PhoneVideo-rootless` | arm64、arm64e | rootless，最低 iOS 15 |
-| `PhoneVideo-roothide` | arm64、arm64e | RootHide，最低 iOS 15 |
+| 包类型 | 文件架构后缀 | 编译架构 | 最低 iOS |
+| --- | --- | --- | --- |
+| rootful | `iphoneos-arm.deb` | arm64 | 14 |
+| rootless | `iphoneos-arm64.deb` | arm64、arm64e | 15 |
+| RootHide | `iphoneos-arm64e.deb` | arm64、arm64e | 15 |
 
-每个 Artifact 包含 deb 和 SHA256 校验值，构建日志单独保留 14 天。没有上传源码的第三方编译服务、不需要 Apple 开发者证书或 GitHub Secrets，也不在 CI 安装到手机。
+1. 根据实际越狱类型安装一个 deb，不能只按 CPU 名称选包。
+2. 重启 SpringBoard；已运行的应用需要重新打开，才能加载键盘组件。
+3. 电脑安装并运行 [GoScrcpy](https://github.com/wwangmc/GoScrcpy)，使用 USB 连接并信任电脑。
+4. 在 GoScrcpy 中连接手机；投屏设置可选择截图或 USB H.264。
 
-在手机上用已有包管理器安装匹配的 deb，重启 SpringBoard，然后运行更新后的 GoScrcpy。保留原有 mks_tweak。插件包名为 `com.phonemanager.phonevideo`，卸载它即可恢复只使用截图。
+插件没有桌面图标。包名为 `com.phonemanager.phonevideo`。卸载后，GoScrcpy 仍可通过手机上已有的 mks_tweak 工作。
 
-本地已有 Theos 的 macOS / Linux 环境也可以执行：
+0.1.0 为视频专用版本，不含独立控制组件；需要本项目完整功能时使用 0.2.0+。
+
+## 连接与组件
+
+| 手机端口 | 用途 |
+| --- | --- |
+| `127.0.0.1:27184` | H.264 视频协议 |
+| `127.0.0.1:27185` | HTTP API 与控制 WebSocket |
+
+新服务只监听手机回环地址，由电脑通过 USBMux 连接，不依赖 Wi-Fi，不要求在电脑创建固定端口转发。
+
+| 安装组件 | 作用 |
+| --- | --- |
+| `PhoneVideo.dylib` | 注入 SpringBoard，提供视频、截图和控制服务 |
+| `PhoneVideoKeyboard.dylib` | 注入 UIKit 应用，接收文字、删除和光标操作 |
+| `phonevideo-roothelp` | 执行 Shell 辅助命令的权限工具 |
+
+键盘通知及自有类/函数使用 PhoneVideo 命名，辅助程序不覆盖旧插件的 `roothelp`。同一 API/投屏会话固定控制来源，失败命令不会跨插件重放。每台手机最多一个 H.264 视频客户端，断开后释放编码器和缓冲池。
+
+文件管理继续依赖 iOS AFC/AFC2/共享应用文档服务，交互式 Shell 继续依赖 OpenSSH；本插件不会安装这两个服务。
+
+## 控制 API
+
+HTTP 和 WebSocket 使用 `27185`。HTTP 成功响应使用 `{"status":"success"}`，需要数据时带 `data` 字段；无变化截图返回 HTTP 204。
+
+| 功能 | 接口 |
+| --- | --- |
+| 设备/屏幕信息 | `GET /deviceInfo?type=30`、`type=1` |
+| 截图 | `GET /screenshot?quality=0.1`、`GET /screenshot_original` |
+| 触摸 | `POST /touch`：`type` 为 down/move/up，坐标使用竖屏像素空间 |
+| Home / 任务 / 电源 | `/pressHome`、`/doublePressHome`、`/pressPowerBtn` |
+| 输入 / 按键 / 删除 / 光标 | `/input`、`/keypress`、`/del`、`/moveCursor` |
+| 系统设置 | `POST /setAllSetting?timeZone=...&locale=...&lang=...`，JSON 对象请求体 |
+| Shell 辅助 | `POST /runShell`，请求体 `{"cmd":"..."}` |
+
+控制 WebSocket 位于 `/`，使用 `{"type":"...","data":...}` 消息，支持 `touch`、`inputText`、`backspace` 和 `moveCursor`。还保留设置查询、单项设置和键盘隐藏接口。
+
+视频数据格式见 [协议说明](docs/PROTOCOL.md)。移植范围、改名与依赖库校验见 [源码来源](Sources/Control/PROVENANCE.md)。未加入 GoScrcpy main 未使用的定位、钥匙串、广告标识符和账号切换接口。
+
+## 编译
+
+GitHub Actions 在推送 main/master 或手动运行 **Build PhoneVideo packages** 后，为三种越狱类型生成 deb 和 SHA256。工作流使用 macOS、Xcode 16.4、RootHide Theos 和 iOS 16.5 SDK。
+
+本地 macOS/Linux 需要对应 Theos 环境和 SDK，在仓库根目录执行：
 
 ```sh
-make TYPE=1 ARCHS="arm64 arm64e" clean package
+make TYPE=0 ARCHS="arm64" clean package          # rootful
+make TYPE=1 ARCHS="arm64 arm64e" clean package   # rootless
+make TYPE=2 ARCHS="arm64 arm64e" clean package   # RootHide
 ```
 
-`TYPE=0` 为 rootful，`TYPE=1` 为 rootless，`TYPE=2` 为 RootHide。RootHide 使用对应 Theos fork。
+RootHide 使用对应 Theos fork。产物位于 `packages/`，无需 Apple 开发者证书。
 
-## 真机验证
+## 检查与排障
 
-先以 30 FPS、4–8 Mbps、最长边 1280 或 1920 测试，再尝试 60 FPS。60 是请求上限，不是保证帧率。电脑端日志应出现 `PhoneVideo / USBMux → device :27184 / H.264`；若仍显示 `/screenshot?quality=0.1`，实际走的是截图回退。
+```sh
+python3 Tests/check_control.py
+clang -std=c11 -Wall -Wextra -Werror Tests/wire_test.c -o /tmp/phonevideo-wire-test
+/tmp/phonevideo-wire-test
+```
 
-检查主屏与应用画面、连续拖动、文字输入、Home、停止后重连、多台设备同时投屏。对比时使用相同分辨率、相同手机场景，同时观察窗口实际 FPS、拖动延迟、CPU 和手机温度。
+CI 会检查视频协议、控制依赖与库 SHA256，再编译所有组件。GoScrcpy 的测试覆盖多手机 USB、视频模式切换、旧插件回退、输入坐标及断开释放。
 
-在手机系统日志中过滤 `[PhoneVideo]`，可以看到端口启动、编码配置错误和连接结束后的发送帧率/码率。这里的 FPS 是发送吞吐量，不是电脑实际显示帧率。`global display capture unavailable`、`encoder create/prepare failed`、`encode timeout/error` 都表示尚未通过真机验证。
+- 在手机日志中过滤 `[PhoneVideo]`，检查视频和控制端口是否启动。
+- GoScrcpy 日志显示 `PhoneVideoTweak :27185` 表示使用新控制服务，`mks_tweak :8081` 表示旧服务回退；H.264 视频端口为 `27184`。
+- 文字无法输入时，确认手机已聚焦输入框，并在安装后重新打开该应用。
+- 本实现使用私有全屏采集，视频保持竖屏坐标；不同 iOS/越狱、屏幕旋转及受保护画面的效果需实际验证。60 FPS 是请求上限。
 
-### 当前边界
+编译成功与协议测试通过不等于所有真机功能均已验证。新增控制组件仍需在目标手机上检查触摸、键盘、系统设置及重连。
 
-- 使用私有 `CARenderServerRenderDisplay` 全局采集。不同 iOS / 越狱可能拒绝采集或返回黑屏，必须真机确认；DRM 等受保护画面不作保证。
-- 保持与现有 mks_tweak 相同的竖屏坐标空间，尚未实现随系统旋转重新配置编码器。
-- iOS 16.5 SDK 中硬件编码选择/查询常量对旧版 iOS 不可用，本实现不会直接链接这些仅限新版的符号。使用系统 H.264 编码路径，不能把设置成功视为已验证硬件编码状态。
-- 这次只新增视频插件；单独安装它不提供输入控制，需要原有 mks_tweak。
+## 来源
 
-## 协议 v1
-
-全部多字节整数为大端。手机只接受一个 16 字节启动请求，之后只向电脑发送数据。
-
-| 请求偏移 | 内容 |
-| --- | --- |
-| 0 | ASCII `PMV1`，4 字节 |
-| 4 | uint32 最大 FPS，1–60 |
-| 8 | uint32 码率，100000–100000000 bit/s |
-| 12 | uint32 最长边，0 为原始尺寸，其他值 64–8192 |
-
-响应先发送 76 字节元数据：64 字节 UTF-8 设备名称（NUL 补齐）、4 字节 `h264`、uint32 宽、uint32 高。之后每包是 12 字节头和 Annex B 负载：uint64 时间戳/标志 + uint32 长度，最高位表示 SPS/PPS 配置，次高位表示关键帧，低 62 位是连接起始后的微秒时间戳。负载限制 16 MiB，与 GoScrcpy / scrcpy 解码包格式兼容。
-
-`Tests/wire_test.c` 在 CI 直接测试与插件共用的协议编码、非法请求和 AVCC → Annex B 边界；GoScrcpy 中的集成测试覆盖双手机 USB 视频、原有输入连接、缩放坐标、断线释放和旧版回退。
+控制实现移植自 [mks_tweak](https://github.com/wwangmc/mks_tweak)，保留原作者声明。HID 源码保留 TrollVNC 的 GPL-2.0 声明，许可全文见 [GPL-2.0](licenses/GPL-2.0.txt)；HTTP/WebSocket 依赖保留 GCDWebServer 头文件中的许可证。具体文件与版本见 [PROVENANCE.md](Sources/Control/PROVENANCE.md)。

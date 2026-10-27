@@ -1,8 +1,8 @@
 Package: com.phonemanager.phonevideo
 Name: PhoneVideo
-Version: 0.1.0
+Version: 0.2.0
 Architecture: iphoneos-arm
-Description: Experimental low-latency H.264 screen video over USB for GoScrcpy.
+Description: USB H.264/JPEG mirroring, touch, keyboard, device settings and shell support for GoScrcpy.
 Maintainer: PhoneManager
 Author: PhoneManager
 Section: Tweaks

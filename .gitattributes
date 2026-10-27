@@ -1,2 +1,4 @@
 * text=auto eol=lf
+*.xm text diff merge
+*.a binary
 *.deb binary

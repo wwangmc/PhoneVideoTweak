@@ -53,6 +53,11 @@ jobs:
           clang -std=c11 -Wall -Wextra -Werror Tests/wire_test.c -o "$RUNNER_TEMP/wire-test"
           "$RUNNER_TEMP/wire-test"
 
+      - name: Check standalone control dependencies
+        run: |
+          python3 Tests/check_control.py
+          xcrun lipo -info Sources/Control/libs/libGCDWebServers.a
+
       - name: Install build tools
         run: |
           xcodebuild -version
